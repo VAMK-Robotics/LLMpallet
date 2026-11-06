@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLMpallet</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+<header>
+  <h1>LLMpallet</h1>
+  <nav>
+    <button class="tab active" data-page="palletizer">Palletizer</button>
+    <button class="tab" data-page="settings">Robot settings</button>
+  </nav>
+</header>
+
+<main id="page-palletizer" class="page active">
+  <aside class="panel" id="params">
+    <section>
+      <h2>Box</h2>
+      <label>Length X (mm) <small>nBoxX</small><input type="number" id="box_length" min="1" step="any"></label>
+      <label>Width Y (mm) <small>nBoxY</small><input type="number" id="box_width" min="1" step="any"></label>
+      <label>Height Z (mm) <small>nBoxZ</small><input type="number" id="box_height" min="1" step="any"></label>
+    </section>
+    <section>
+      <h2>Pallet</h2>
+      <label>Total boxes<input type="number" id="total_boxes" min="1" step="1"></label>
+      <label>Layers<input type="number" id="layer_count" min="1" step="1"></label>
+      <label>Gap between boxes (mm)<input type="number" id="gap" min="0" step="any"></label>
+      <label>Free border X (mm)<input type="number" id="border_x" min="0" step="any"></label>
+      <label>Free border Y (mm)<input type="number" id="border_y" min="0" step="any"></label>
+      <label>Interlayer thickness (mm)<input type="number" id="interlayer_thickness" min="0" step="any"></label>
+      <label class="check"><input type="checkbox" id="interlayer_bottom"> Interlayer also under first layer</label>
+      <label>Partial layer
+        <select id="partial_layer_mode">
+          <option value="centered">Centered</option>
+          <option value="start_corner">Packed from start corner</option>
+        </select>
+      </label>
+      <label>Placing order (robot at origin corner)
+        <select id="primary_axis">
+          <option value="x">Far X first, then far Y</option>
+          <option value="y">Far Y first, then far X</option>
+        </select>
+      </label>
+    </section>
+    <section id="layer-panel">
+      <h2>Layer pattern</h2>
+      <label>Active layer<select id="active_layer"></select></label>
+      <label>Pattern
+        <select id="layer_pattern">
+          <option value="column">Column</option>
+          <option value="interlocked">Interlocked (90° every other layer)</option>
+          <option value="pinwheel">Pinwheel</option>
+          <option value="optimized">Tetris (optimized)</option>
+        </select>
+      </label>
+      <label id="row-rotation"><span id="rotation-label">Rotation</span>
+        <select id="layer_rotation">
+          <option value="-90">-90°</option><option value="0">0°</option>
+          <option value="90">90°</option><option value="180">180°</option>
+        </select>
+      </label>
+      <label id="row-rot-long">Lengthwise boxes
+        <select id="layer_rot_long"><option value="0">0°</option><option value="180">180°</option></select>
+      </label>
+      <label id="row-rot-cross">Crosswise boxes
+        <select id="layer_rot_cross"><option value="90">90°</option><option value="-90">-90°</option></select>
+      </label>
+      <p class="hint" id="pattern-hint"></p>
+      <button id="apply_all" class="secondary">Apply to all layers</button>
+    </section>
+  </aside>
+
+  <section id="viewer">
+    <div id="canvas-wrap"></div>
+    <div id="view-buttons">
+      <button data-view="iso">Iso</button>
+      <button data-view="top">Top</button>
+      <button data-view="front">Front</button>
+      <label class="check"><input type="checkbox" id="show_numbers" checked> Order numbers</label>
+      <label class="check"><input type="checkbox" id="fade_others" checked> Fade other layers</label>
+    </div>
+    <div id="tooltip" hidden></div>
+    <div id="legend">Left drag: rotate · Right drag: pan · Wheel: zoom · Click a box: select layer</div>
+  </section>
+
+  <aside class="panel" id="results">
+    <section>
+      <h2>Result</h2>
+      <div id="summary"></div>
+      <ul id="messages"></ul>
+      <table id="layer-table"><thead><tr><th>Layer</th><th>Pattern</th><th>Boxes</th><th>Z top</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section>
+      <h2>Generate</h2>
+      <label>CSV file name<input type="text" id="filename" maxlength="100"></label>
+      <button id="generate" class="primary">Generate CSV</button>
+      <ul id="gen-log" class="log"></ul>
+      <a id="download" hidden>Download generated CSV</a>
+    </section>
+    <section>
+      <h2>Active layer positions</h2>
+      <div class="table-scroll">
+        <table id="pos-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>R</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<main id="page-settings" class="page">
+  <form class="panel settings" id="settings-form" autocomplete="off" onsubmit="return false">
+    <section>
+      <h2>Controller connection</h2>
+      <label>Protocol
+        <select name="protocol"><option value="https">HTTPS (OmniCore default)</option><option value="http">HTTP</option></select>
+      </label>
+      <label>IP address<input name="ip_address" type="text"></label>
+      <label>HTTP port<input name="http_port" type="number" min="1" max="65535"></label>
+      <label>HTTPS port<input name="https_port" type="number" min="1" max="65535"></label>
+      <label>User name<input name="username" type="text"></label>
+      <label>Password<input name="password" type="password" placeholder="(unchanged)" autocomplete="new-password"></label>
+      <label class="check"><input name="verify_cert" type="checkbox"> Verify HTTPS certificate</label>
+      <label>Timeout (s)<input name="timeout_s" type="number" min="1" max="120" step="any"></label>
+      <button type="button" id="test-connection" class="secondary">Test connection</button>
+      <ul id="test-log" class="log"></ul>
+    </section>
+    <section>
+      <h2>Target on controller</h2>
+      <label>CSV directory<input name="csv_directory" type="text"></label>
+      <label>Default CSV file name<input name="default_filename" type="text"></label>
+      <label>Task<input name="task" type="text"></label>
+      <label>Module<input name="module" type="text"></label>
+      <label>Variable for box X (length)<input name="var_x" type="text"></label>
+      <label>Variable for box Y (width)<input name="var_y" type="text"></label>
+      <label>Variable for box Z (height)<input name="var_z" type="text"></label>
+      <p class="hint">Variables must be declared as <code>VAR num</code> or <code>PERS num</code> in the module.</p>
+    </section>
+    <p id="settings-status" class="status"></p>
+  </form>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
