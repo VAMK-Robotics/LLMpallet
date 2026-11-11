@@ -73,6 +73,18 @@ Settings for each layer: pattern, rotation, and the two rotations used by the op
 | Pinwheel | Four blocks around the centre, point-symmetric, each block turned 90° from the previous one. Block sizes are searched by enumeration. | User picks block 1's rotation; blocks 2–4 get +90, +180, +270. All four directions occur, so a marked side can face out. |
 | Optimized ("tetris") | Best of: recursive guillotine dynamic program over the "normal" positions (both orientations), and the pinwheel search. Most boxes wins. | User picks the rotation for lengthwise boxes (0/180) and crosswise boxes (90/−90) |
 
+**Support and overhang.** Parameter `max_overhang_pct` (default 20 %): the largest share of a box's
+bottom area that may rest on nothing.
+
+* For every position above the first layer, the engine sums the area where it overlaps the boxes
+  actually placed in the layer below (gaps and empty spots count as unsupported). Positions over the
+  limit are left out, which lowers that layer's capacity.
+* The interlayer sheet doesn't count as support.
+* Tetris layers try every candidate layout (guillotine, both pinwheels, both columns) and use the one
+  that carries the most supported boxes.
+* Left-out positions are reported as a warning and drawn as red dashed outlines in the preview. Each
+  box's support % is shown in the tooltip and in the positions table.
+
 **Box count and layers.** Layers are filled in order up to their capacity until the total is reached.
 
 * *Error* (Generate is blocked) if the total is more than the combined capacity, or a layer can't hold

@@ -48,6 +48,11 @@ Each layer has its own pattern. Pick the layer in the drop-down, or click a box 
 **Placing order.** The robot stands at the origin corner, so every layer is filled from the far corner
 toward the origin, bottom layer first. The CSV rows follow this order.
 
+**Allowed overhang.** This is the largest share (%) of a box's bottom area that may hang over nothing.
+Above the first layer, a position is used only if at least (100 − limit) % of the box rests on boxes
+in the layer below. Other positions are left out and shown as red dashed outlines. Tetris layers pick
+the candidate layout with the most supported boxes.
+
 **Partial last layer.** Its boxes are either centred, or packed from the start corner.
 
 ## CSV

@@ -56,6 +56,7 @@ export class Preview3D {
     this.edgeMatActive = new THREE.LineBasicMaterial({ color: 0x1d4ed8 });
     this.edgeMatFaded = new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.25 });
     this.markerMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+    this.rejectedMat = new THREE.LineDashedMaterial({ color: 0xdc2626, dashSize: 15, gapSize: 10 });
     this.arrowMat = new THREE.MeshBasicMaterial({ color: 0x1f2937, side: THREE.DoubleSide });
     this.interlayerMat = new THREE.MeshStandardMaterial({ color: 0xa0784f, roughness: 1, transparent: true, opacity: 0.45, depthWrite: false });
     this.interlayerGhostMat = new THREE.MeshStandardMaterial({ color: 0xa0784f, roughness: 1, transparent: true, opacity: 0.06, depthWrite: false });
@@ -165,6 +166,18 @@ export class Preview3D {
       this.boxMeshes.push({ mesh, edges, marker, arrow, label, p });
     }
 
+    // positions left out because of too much overhang: red outlines, shown for the active layer
+    this.rejectedMeshes = [];
+    for (const r of layout.rejected || []) {
+      const g = getGeo(r.size_x, r.size_y);
+      const outline = new THREE.LineSegments(g.edges, this.rejectedMat);
+      outline.computeLineDistances();
+      outline.position.set(r.x, r.y, r.z - H / 2);
+      outline.userData = r;
+      this.dynamicGroup.add(outline);
+      this.rejectedMeshes.push(outline);
+    }
+
     const t = params.interlayer_thickness;
     this.interlayerMeshes = [];
     if (t > 0) {
@@ -207,6 +220,7 @@ export class Preview3D {
       b.arrow.visible = isActive;
       b.label.visible = isActive && this.showNumbers;
     }
+    for (const m of this.rejectedMeshes || []) m.visible = m.userData.layer === layer;
     const activeInfo = this.layout && this.layout.layers[layer];
     for (const m of this.interlayerMeshes || []) {
       m.material = activeInfo && m.userData.z >= activeInfo.z_top - 1e-6 ? this.interlayerGhostMat : this.interlayerMat;
@@ -259,7 +273,8 @@ export class Preview3D {
       const rect = this.container.getBoundingClientRect();
       this.tooltip.hidden = false;
       this.tooltip.textContent =
-        `Box #${hit.index}  (layer ${hit.layer + 1})\nX ${hit.x.toFixed(1)}  Y ${hit.y.toFixed(1)}  Z ${hit.z.toFixed(1)}\nR ${hit.rotation}°`;
+        `Box #${hit.index}  (layer ${hit.layer + 1})\nX ${hit.x.toFixed(1)}  Y ${hit.y.toFixed(1)}  Z ${hit.z.toFixed(1)}\n` +
+        `R ${hit.rotation}°   supported ${Math.round(hit.support_pct)} %`;
       this.tooltip.style.left = `${e.clientX - rect.left + 14}px`;
       this.tooltip.style.top = `${e.clientY - rect.top + 14}px`;
     });

@@ -167,7 +167,23 @@ def guillotine(ux: int, uy: int, a: int, b: int) -> list[Cell]:
     return cells
 
 
+def optimized_candidates(ux: int, uy: int, a: int, b: int) -> list[list[Cell]]:
+    """Candidate layouts for the optimized pattern, most boxes first (guillotine first on ties).
+
+    Plain columns in both orientations are included too: when the layer below limits the allowed
+    overhang, a less dense layout may carry more boxes.
+    """
+    candidates = [guillotine(ux, uy, a, b), pinwheel(ux, uy, a, b, True), pinwheel(ux, uy, a, b, False),
+                  column(ux, uy, a, b, True), column(ux, uy, a, b, False)]
+    unique: list[list[Cell]] = []
+    for c in candidates:
+        if c and all(set(c) != set(u) for u in unique):
+            unique.append(c)
+    unique.sort(key=len, reverse=True)  # stable sort keeps the guillotine first on ties
+    return unique
+
+
 def optimized(ux: int, uy: int, a: int, b: int) -> list[Cell]:
-    """Best of guillotine DP and both pinwheel variants (most boxes wins, guillotine on ties)."""
-    candidates = [guillotine(ux, uy, a, b), pinwheel(ux, uy, a, b, True), pinwheel(ux, uy, a, b, False)]
-    return max(candidates, key=len)  # max() keeps the first one on ties
+    """Layout with the most boxes."""
+    cands = optimized_candidates(ux, uy, a, b)
+    return cands[0] if cands else []

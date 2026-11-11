@@ -48,6 +48,8 @@ class PalletParams(BaseModel):
     border_y: float = Field(0.0, ge=0, lt=400)
     interlayer_thickness: float = Field(0.0, ge=0, le=100)
     interlayer_bottom: bool = False
+    # largest share (%) of a box's bottom face that may hang over nothing (no box in the layer below)
+    max_overhang_pct: float = Field(20.0, ge=0, le=100)
     partial_layer_mode: Literal["centered", "start_corner"] = "centered"
     primary_axis: Literal["x", "y"] = "x"
     layers: list[LayerConfig] = Field(default_factory=list)

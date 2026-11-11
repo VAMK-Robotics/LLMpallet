@@ -4,9 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LLMpallet</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=dev">
+  <!-- "?v=dev" is replaced by the server with the current frontend version (cache busting).
+       The ./js/ entries also version the modules that app.js imports with relative paths. -->
   <script type="importmap">
-    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+    { "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/",
+        "./js/api.js": "./js/api.js?v=dev",
+        "./js/preview3d.js": "./js/preview3d.js?v=dev",
+        "./js/settings.js": "./js/settings.js?v=dev"
+    } }
   </script>
 </head>
 <body>
@@ -35,6 +43,10 @@
       <label>Free border Y (mm)<input type="number" id="border_y" min="0" step="any"></label>
       <label>Interlayer thickness (mm)<input type="number" id="interlayer_thickness" min="0" step="any"></label>
       <label class="check"><input type="checkbox" id="interlayer_bottom"> Interlayer also under first layer</label>
+      <label>Allowed overhang (% of box bottom area)
+        <input type="number" id="max_overhang_pct" min="0" max="100" step="any">
+        <small>Share of a box that may hang over nothing on the layer below. Positions above the limit are left out.</small>
+      </label>
       <label>Partial layer
         <select id="partial_layer_mode">
           <option value="centered">Centered</option>
@@ -106,7 +118,7 @@
     <section>
       <h2>Active layer positions</h2>
       <div class="table-scroll">
-        <table id="pos-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>R</th></tr></thead><tbody></tbody></table>
+        <table id="pos-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>R</th><th title="Share of the bottom face resting on the layer below">Sup %</th></tr></thead><tbody></tbody></table>
       </div>
     </section>
   </aside>
@@ -144,6 +156,6 @@
   </form>
 </main>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=dev"></script>
 </body>
 </html>

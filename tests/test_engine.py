@@ -94,7 +94,7 @@ def test_z_with_interlayer():
 
 
 def test_interlocked_rotates_every_other_layer():
-    p = params(box_length=400, box_width=300, total_boxes=20, layer_count=3,
+    p = params(box_length=400, box_width=300, total_boxes=20, layer_count=3, max_overhang_pct=100,
                layers=[{"pattern": "interlocked", "rotation": 180}])
     r = compute_layout(p)
     assert [l.rotations for l in r.layers] == [[180], [-90], [180]]
@@ -178,7 +178,7 @@ def test_box_does_not_fit_is_error():
 
 
 def test_layer_config_per_layer():
-    p = params(box_length=400, box_width=300, total_boxes=14, layer_count=2,
+    p = params(box_length=400, box_width=300, total_boxes=14, layer_count=2, max_overhang_pct=100,
                layers=[{"pattern": "column", "rotation": 0}, {"pattern": "column", "rotation": 90}])
     r = compute_layout(p)
     assert [l.capacity for l in r.layers] == [6, 8]
@@ -193,3 +193,73 @@ def test_csv_format():
     assert lines[0] == "1050.0,600.0,200.0,-90.0"
     assert all(len(l.split(",")) == 4 for l in lines[:-1])
     assert "\r" not in text
+
+
+# ---------------------------------------------------------------------------- overhang / support
+
+def _support(upper, lower_boxes):
+    """Independent brute-force support calculation for one box (percent of its bottom area)."""
+    area = 0.0
+    for b in lower_boxes:
+        w = min(upper.x + upper.size_x / 2, b.x + b.size_x / 2) - max(upper.x - upper.size_x / 2, b.x - b.size_x / 2)
+        h = min(upper.y + upper.size_y / 2, b.y + b.size_y / 2) - max(upper.y - upper.size_y / 2, b.y - b.size_y / 2)
+        if w > 0 and h > 0:
+            area += w * h
+    return 100 * area / (upper.size_x * upper.size_y)
+
+
+def assert_supported(result, allowed):
+    for b in result.placements:
+        if b.layer == 0:
+            continue
+        below = [o for o in result.placements if o.layer == b.layer - 1]
+        support = _support(b, below)
+        assert 100 - support <= allowed + 1e-6, f"box {b.index} overhangs {100 - support:.1f} %"
+        assert abs(support - b.support_pct) < 0.1
+
+
+def test_overhang_limit_removes_unsupported_boxes():
+    # Layer 1: 6 boxes 400x300 at 0 deg cover Y 100..700. Layer 2 at 90 deg: 300x400 boxes cover
+    # Y 0..800, so each one hangs 25 % over nothing.
+    layers = [{"pattern": "column", "rotation": 0}, {"pattern": "column", "rotation": 90}]
+    strict = compute_layout(params(box_length=400, box_width=300, total_boxes=14, layer_count=2,
+                                   max_overhang_pct=20, layers=layers))
+    assert strict.layers[1].capacity == 0
+    assert any("supported" in e for e in strict.errors)
+    assert len(strict.rejected) == 8 and all(r["support_pct"] == 75 for r in strict.rejected)
+
+    loose = compute_layout(params(box_length=400, box_width=300, total_boxes=14, layer_count=2,
+                                  max_overhang_pct=25, layers=layers))
+    assert loose.errors == [] and loose.layers[1].capacity == 8
+    assert all(b.support_pct == 75 for b in loose.placements if b.layer == 1)
+
+
+def test_box_over_nothing_is_never_placed():
+    # Layer 1 is a pinwheel with a hole in the middle; a column layer on top must not use the hole.
+    p = params(box_length=310, box_width=210, box_height=150, total_boxes=1000, layer_count=2, gap=5,
+               max_overhang_pct=0, layers=[{"pattern": "pinwheel"}, {"pattern": "column", "rotation": 90}])
+    r = compute_layout(p)
+    assert_supported(r, 0)
+    assert r.rejected  # some positions were dropped
+
+
+def test_optimized_layer_prefers_supported_layout():
+    # The densest tetris layout (8 boxes at 90 deg) would overhang 25 % on a 0 deg column layer;
+    # with a 20 % limit the optimizer falls back to a layout that is fully supported.
+    p = params(box_length=400, box_width=300, total_boxes=12, layer_count=2, max_overhang_pct=20,
+               layers=[{"pattern": "column", "rotation": 0}, {"pattern": "optimized"}])
+    r = compute_layout(p)
+    assert r.errors == []
+    assert r.layers[1].capacity == 6
+    assert_supported(r, 20)
+
+
+def test_supported_for_all_patterns():
+    for allowed in (0, 10, 30):
+        for lower, upper in itertools.product(("column", "interlocked", "pinwheel", "optimized"), repeat=2):
+            p = params(box_length=310, box_width=210, box_height=150, total_boxes=1000, layer_count=3, gap=4,
+                       border_x=12, border_y=8, max_overhang_pct=allowed,
+                       layers=[{"pattern": lower}, {"pattern": upper}, {"pattern": lower}])
+            r = compute_layout(p)
+            assert_valid(r, p)
+            assert_supported(r, allowed)

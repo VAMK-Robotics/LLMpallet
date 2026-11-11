@@ -5,7 +5,7 @@ import { initSettings } from "./settings.js";
 const $ = id => document.getElementById(id);
 
 const NUMBER_FIELDS = ["box_length", "box_width", "box_height", "total_boxes", "layer_count", "gap",
-  "border_x", "border_y", "interlayer_thickness"];
+  "border_x", "border_y", "interlayer_thickness", "max_overhang_pct"];
 const INT_FIELDS = new Set(["total_boxes", "layer_count"]);
 const SELECT_FIELDS = ["partial_layer_mode", "primary_axis"];
 
@@ -48,8 +48,9 @@ function readForm() {
   for (const f of NUMBER_FIELDS) {
     const el = $(f);
     const v = INT_FIELDS.has(f) ? parseInt(el.value, 10) : parseFloat(el.value);
-    const min = parseFloat(el.min);
-    const ok = Number.isFinite(v) && (!Number.isFinite(min) || v >= min) && (!INT_FIELDS.has(f) || String(v) === el.value.trim());
+    const min = parseFloat(el.min), max = parseFloat(el.max);
+    const ok = Number.isFinite(v) && (!Number.isFinite(min) || v >= min) && (!Number.isFinite(max) || v <= max) &&
+      (!INT_FIELDS.has(f) || String(v) === el.value.trim());
     el.classList.toggle("invalid", !ok);
     if (ok) state.params[f] = v; else valid = false;
   }
@@ -116,6 +117,7 @@ async function recompute() {
     preview.setLayout(layout, state.params);
     if (firstRender) preview.setView("iso");
     renderResults();
+    if (!firstRender) clearGenerateLog();
     saveJob();
   } catch (e) {
     if (id !== state.requestId) return;
@@ -123,6 +125,14 @@ async function recompute() {
   }
 }
 const recomputeSoon = debounce(recompute, 120);
+
+// The log under "Generate CSV" belongs to the parameters it was generated with: clear it as soon as
+// the layout changes, so an old result is never mistaken for a message about the current settings.
+function clearGenerateLog() {
+  if (!$("gen-log").children.length) return;
+  $("gen-log").innerHTML = "";
+  $("download").hidden = true;
+}
 
 function onParamsChanged() {
   if (!readForm()) {
@@ -171,7 +181,9 @@ function renderResults() {
   pb.innerHTML = "";
   for (const b of L.placements.filter(b => b.layer === state.active)) {
     const tr = pb.insertRow();
-    for (const v of [b.index, b.x.toFixed(1), b.y.toFixed(1), b.z.toFixed(1), b.rotation]) tr.insertCell().textContent = v;
+    for (const v of [b.index, b.x.toFixed(1), b.y.toFixed(1), b.z.toFixed(1), b.rotation, Math.round(b.support_pct)]) {
+      tr.insertCell().textContent = v;
+    }
   }
 }
 

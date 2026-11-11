@@ -10,7 +10,7 @@ import warnings
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import rws_client
@@ -27,6 +27,15 @@ warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 app = FastAPI(title="LLMpallet", version="1.0")
 store = ConfigStore()
+
+
+@app.middleware("http")
+async def no_stale_frontend(request, call_next):
+    """Make the browser revalidate HTML/JS/CSS on every load, so an updated frontend is never
+    mixed with old cached scripts (ETag still avoids re-downloading unchanged files)."""
+    response = await call_next(request)
+    response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 
 
 @app.get("/api/pallet")
@@ -92,9 +101,18 @@ def generate(req: GenerateRequest) -> dict:
             "csv": csv_text, "steps": steps}
 
 
+def _frontend_version() -> str:
+    """Changes whenever any of our own frontend files changes (vendor files are fixed)."""
+    files = [p for p in FRONTEND.rglob("*") if p.is_file() and "vendor" not in p.parts]
+    return format(int(max(p.stat().st_mtime for p in files)), "x")
+
+
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(FRONTEND / "index.html")
+def index() -> HTMLResponse:
+    # Every script/style URL carries ?v=<version>, so a browser can never mix a new page with old
+    # cached modules. index.html holds the placeholder "?v=dev".
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("?v=dev", f"?v={_frontend_version()}"))
 
 
 app.mount("/", StaticFiles(directory=FRONTEND), name="frontend")
