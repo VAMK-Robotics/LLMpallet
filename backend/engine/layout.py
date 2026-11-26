@@ -90,6 +90,34 @@ def _layer_positions(p: PalletParams, cfg: LayerConfig, layer_index: int) -> lis
     return [_centre(p, cfg, cells, base, length, width, usable_x, usable_y) for cells in candidates if cells]
 
 
+def _interlocked_fit(p: PalletParams, cfg: LayerConfig, layer_index: int,
+                     ref: tuple[float, float, float, float]) -> list[dict]:
+    """Interlocked layer stretched to cover exactly the outline `ref` (x0, x1, y0, y1) of layer 1.
+
+    As many boxes as fit inside the outline (with at least the normal gap) are used per axis; the
+    rows/columns are then spread so the outer boxes touch the outline edges, which widens the gaps.
+    With a single box along an axis it is centred on that axis.
+    """
+    base = cfg.rotation
+    if layer_index % 2 == 1:
+        base = normalize_rotation(base + 90)
+    sx, sy = (p.box_length, p.box_width) if base in (0, 180) else (p.box_width, p.box_length)
+    x0, x1, y0, y1 = ref
+
+    def axis(lo: float, hi: float, size: float) -> list[float]:
+        span = hi - lo
+        n = int((span + p.gap) / (size + p.gap) + 1e-9)
+        if n <= 0:
+            return []
+        if n == 1:
+            return [(lo + hi) / 2]
+        step = (span - size) / (n - 1)
+        return [lo + size / 2 + i * step for i in range(n)]
+
+    return [{"x": round(x, 6), "y": round(y, 6), "size_x": sx, "size_y": sy, "rotation": base, "block": 0}
+            for x in axis(x0, x1, sx) for y in axis(y0, y1, sy)]
+
+
 def _centre(p: PalletParams, cfg: LayerConfig, cells, base: int, length: int, width: int,
             usable_x: int, usable_y: int) -> list[dict]:
     def size(c: patterns.Cell) -> tuple[int, int]:
@@ -225,14 +253,22 @@ def compute_layout(p: PalletParams) -> LayoutResult:
     allowed = p.max_overhang_pct
     index = 0
     below: SupportIndex | None = None  # None = first layer, standing on the pallet deck
+    first_outline: tuple[float, float, float, float] | None = None  # (x0, x1, y0, y1) of layer 1
     layer_cache: dict[tuple, list[list[dict]]] = {}  # identical layers are generated only once
     for li in range(p.layer_count):
         cfg = p.layer_config(li)
         z_bottom = li * p.box_height + (li + (1 if p.interlayer_bottom else 0)) * t
         z_top = z_bottom + p.box_height
-        cache_key = (cfg.model_dump_json(), li % 2 if cfg.pattern == "interlocked" else 0)
+        # Interlocked layers above the first one cover exactly the outline of the first layer.
+        fit_ref = first_outline if cfg.pattern == "interlocked" and li > 0 else None
+        cache_key = (cfg.model_dump_json(), li % 2 if cfg.pattern == "interlocked" else 0, fit_ref)
         if cache_key not in layer_cache:
-            layer_cache[cache_key] = [_order(c, p.primary_axis) for c in _layer_positions(p, cfg, li)]
+            if fit_ref is not None:
+                fitted = _interlocked_fit(p, cfg, li, fit_ref)
+                layouts = [fitted] if fitted else []
+            else:
+                layouts = _layer_positions(p, cfg, li)
+            layer_cache[cache_key] = [_order(c, p.primary_axis) for c in layouts]
         candidates = layer_cache[cache_key]
 
         # Keep only positions whose overhang over the boxes of the layer below is within the limit.
@@ -251,7 +287,10 @@ def compute_layout(p: PalletParams) -> LayoutResult:
         capacity = len(full)
         res.capacity += capacity
         if not full and not rejected:
-            if needed:
+            if needed and fit_ref is not None:
+                res.errors.append(f"Layer {li + 1}: the turned box does not fit inside the outline of layer 1 "
+                                  f"({fit_ref[1] - fit_ref[0]:.0f} x {fit_ref[3] - fit_ref[2]:.0f} mm).")
+            elif needed:
                 res.errors.append(f"Layer {li + 1}: the box does not fit on the pallet with the "
                                   f"'{cfg.pattern}' pattern and the given borders.")
         elif capacity == 0:
@@ -298,6 +337,11 @@ def compute_layout(p: PalletParams) -> LayoutResult:
         # Real boxes carry the next layer. When this layer is not full, the total is already reached
         # and the next layers stay empty; their capacity is then reported as if this layer were full.
         below = SupportIndex(chosen if count == capacity else full)
+        if li == 0 and full:
+            first_outline = (round(min(b["x"] - b["size_x"] / 2 for b in full), 6),
+                             round(max(b["x"] + b["size_x"] / 2 for b in full), 6),
+                             round(min(b["y"] - b["size_y"] / 2 for b in full), 6),
+                             round(max(b["y"] + b["size_y"] / 2 for b in full), 6))
 
     res.total_boxes = len(res.placements)
     if remaining > 0:

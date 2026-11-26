@@ -41,7 +41,7 @@ Each layer has its own pattern. Pick the layer in the drop-down, or click a box 
 | Pattern | Description |
 |---|---|
 | Column | Grid, all boxes in the chosen rotation |
-| Interlocked | Block pattern, every second layer turned 90° |
+| Interlocked | Block pattern, every second layer turned 90°. Interlocked layers above layer 1 cover exactly the same outline as layer 1: the boxes are spread out, with wider gaps between them |
 | Pinwheel | Four blocks around the centre, block *k* turned *k*·90° from the chosen rotation |
 | Tetris | The optimizer finds the layout with the most boxes. You choose which rotation the lengthwise and crosswise boxes use |
 

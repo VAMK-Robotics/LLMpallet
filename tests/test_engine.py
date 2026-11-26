@@ -263,3 +263,45 @@ def test_supported_for_all_patterns():
             r = compute_layout(p)
             assert_valid(r, p)
             assert_supported(r, allowed)
+
+
+# ---------------------------------------------------------------------------- interlocked outline
+
+def _outline(boxes):
+    return (round(min(b.x - b.size_x / 2 for b in boxes), 3), round(max(b.x + b.size_x / 2 for b in boxes), 3),
+            round(min(b.y - b.size_y / 2 for b in boxes), 3), round(max(b.y + b.size_y / 2 for b in boxes), 3))
+
+
+def test_interlocked_layers_cover_the_outline_of_the_first_layer():
+    for dims, gap in [((250, 200), 3), ((310, 210), 5), ((370, 230), 0)]:
+        p = params(box_length=dims[0], box_width=dims[1], box_height=50, gap=gap, border_x=2, border_y=2,
+                   total_boxes=10000, layer_count=4, max_overhang_pct=100,
+                   layers=[{"pattern": "interlocked", "rotation": 90}])
+        r = compute_layout(p)
+        assert r.placements
+        assert_valid(r, p)  # widened gaps are never smaller than the minimum gap
+        first = _outline([b for b in r.placements if b.layer == 0])
+        for li in range(1, 4):
+            assert _outline([b for b in r.placements if b.layer == li]) == first, (dims, li)
+        assert [l.rotations for l in r.layers] == [[90], [180], [90], [180]]
+
+
+def test_interlocked_gaps_are_spread_evenly():
+    # 250x200, gap 3, layer 1 at 90 deg: outline 1012 x 756. Layer 2 at 180 deg: 4 x 3 boxes spread
+    # over the outline -> X pitch (1012-250)/3 = 254, Y pitch (756-200)/2 = 278.
+    p = params(box_length=250, box_width=200, gap=3, border_x=2, border_y=2, total_boxes=27, layer_count=2,
+               max_overhang_pct=100, layers=[{"pattern": "interlocked", "rotation": 90}])
+    r = compute_layout(p)
+    upper = [b for b in r.placements if b.layer == 1]
+    xs, ys = sorted({b.x for b in upper}), sorted({b.y for b in upper})
+    assert [round(b - a, 3) for a, b in zip(xs, xs[1:])] == [254.0] * 3
+    assert [round(b - a, 3) for a, b in zip(ys, ys[1:])] == [278.0] * 2
+
+
+def test_interlocked_on_top_of_other_pattern_uses_its_outline():
+    p = params(box_length=310, box_width=210, gap=5, total_boxes=10000, layer_count=2, max_overhang_pct=100,
+               layers=[{"pattern": "optimized"}, {"pattern": "interlocked", "rotation": 0}])
+    r = compute_layout(p)
+    lower = [b for b in r.placements if b.layer == 0]
+    upper = [b for b in r.placements if b.layer == 1]
+    assert upper and _outline(upper) == _outline(lower)

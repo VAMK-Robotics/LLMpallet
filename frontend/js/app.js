@@ -11,7 +11,8 @@ const SELECT_FIELDS = ["partial_layer_mode", "primary_axis"];
 
 const PATTERN_HINTS = {
   column: "All boxes have the same orientation in a straight grid.",
-  interlocked: "Block pattern. Every second layer (2nd, 4th, …) is turned 90° relative to the chosen rotation, so the layers interlock.",
+  interlocked: "Block pattern. Every second layer (2nd, 4th, …) is turned 90° relative to the chosen rotation, so the layers interlock. " +
+    "Interlocked layers above layer 1 cover exactly the same outline as layer 1: the boxes are spread out and the extra space becomes wider gaps between them.",
   pinwheel: "Four blocks around the centre. Blocks 2–4 are turned +90°, +180° and +270° from block 1, so each block faces a different side of the pallet.",
   optimized: "Tetris: the software searches the layout with the most boxes. Choose which rotation the lengthwise and crosswise boxes use.",
 };

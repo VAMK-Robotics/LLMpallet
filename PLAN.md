@@ -69,7 +69,7 @@ Settings for each layer: pattern, rotation, and the two rotations used by the op
 | Pattern | Algorithm | Rotation |
 |---|---|---|
 | Column | Uniform grid | User: −90/0/90/180 |
-| Interlocked | Block (grid) pattern. Each layer is turned 90° relative to the one below: even layers (1st, 3rd, …) use the chosen rotation, odd layers use rotation + 90°. | User: −90/0/90/180 (base) |
+| Interlocked | Block (grid) pattern. Each layer is turned 90° relative to the one below: even layers (1st, 3rd, …) use the chosen rotation, odd layers use rotation + 90°. Interlocked layers above layer 1 cover exactly the same outline (bounding rectangle) as layer 1: per axis, as many boxes as fit inside the outline with the minimum gap are used, then spread so the outer boxes touch the outline edges (wider, even gaps). With only one box along an axis it is centred. | User: −90/0/90/180 (base) |
 | Pinwheel | Four blocks around the centre, point-symmetric, each block turned 90° from the previous one. Block sizes are searched by enumeration. | User picks block 1's rotation; blocks 2–4 get +90, +180, +270. All four directions occur, so a marked side can face out. |
 | Optimized ("tetris") | Best of: recursive guillotine dynamic program over the "normal" positions (both orientations), and the pinwheel search. Most boxes wins. | User picks the rotation for lengthwise boxes (0/180) and crosswise boxes (90/−90) |
 
